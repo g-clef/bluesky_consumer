@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: storage-worker
+  namespace: bluesky
+  labels:
+    app: storage-worker
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  type: ClusterIP
+  selector:
+    app: storage-worker
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080

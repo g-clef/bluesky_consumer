@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redpanda
+  namespace: bluesky
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  serviceName: redpanda-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      # Avoid GPU node
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: gpu
+                operator: DoesNotExist
+      containers:
+      - name: redpanda
+        image: docker.redpanda.com/redpandadata/redpanda:v23.3.5
+        args:
+        - redpanda
+        - start
+        - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+        - --advertise-kafka-addr=PLAINTEXT://$(POD_NAME).redpanda-headless.bluesky.svc.cluster.local:9092
+        - --pandaproxy-addr=0.0.0.0:8082
+        - --advertise-pandaproxy-addr=$(POD_NAME).redpanda-headless.bluesky.svc.cluster.local:8082
+        - --rpc-addr=0.0.0.0:33145
+        - --advertise-rpc-addr=$(POD_NAME).redpanda-headless.bluesky.svc.cluster.local:33145
+        - --smp=1
+        - --memory=1G
+        - --reserve-memory=0M
+        - --overprovisioned
+        - --node-id=$(POD_INDEX)
+        - --seeds=redpanda-0.redpanda-headless.bluesky.svc.cluster.local:33145,redpanda-1.redpanda-headless.bluesky.svc.cluster.local:33145,redpanda-2.redpanda-headless.bluesky.svc.cluster.local:33145
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_INDEX
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+        ports:
+        - containerPort: 9092
+          name: kafka
+        - containerPort: 8082
+          name: proxy
+        - containerPort: 33145
+          name: rpc
+        - containerPort: 9644
+          name: admin
+        volumeMounts:
+        - name: datadir
+          mountPath: /var/lib/redpanda/data
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /v1/status/ready
+            port: 9644
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /v1/status/ready
+            port: 9644
+          initialDelaySeconds: 10
+          periodSeconds: 5
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 20Gi

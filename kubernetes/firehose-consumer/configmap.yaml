@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: firehose-consumer-config
+  namespace: bluesky
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  firehose-consumer.yaml: |
+    firehose:
+      endpoint: wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos
+      reconnect_delay: 5
+      max_reconnect_delay: 300
+
+    kafka:
+      bootstrap_servers: redpanda.bluesky.svc.cluster.local:9092
+      topic: bluesky-events
+      compression_type: snappy
+      batch_size: 1000
+      linger_ms: 100
+
+    health:
+      port: 8080

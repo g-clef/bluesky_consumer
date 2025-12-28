@@ -1,0 +1,1 @@
+"""Firehose consumer service - connects to Bluesky firehose and produces to Kafka."""

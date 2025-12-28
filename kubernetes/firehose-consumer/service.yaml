@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: firehose-consumer
+  namespace: bluesky
+  labels:
+    app: firehose-consumer
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  type: ClusterIP
+  selector:
+    app: firehose-consumer
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080

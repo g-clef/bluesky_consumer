@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firehose-consumer
+  namespace: bluesky
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1  # Single replica - firehose is a single stream
+  selector:
+    matchLabels:
+      app: firehose-consumer
+  template:
+    metadata:
+      labels:
+        app: firehose-consumer
+    spec:
+      containers:
+      - name: firehose-consumer
+        image: gclef/bluesky-firehose-consumer:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "redpanda.bluesky.svc.cluster.local:9092"
+        - name: KAFKA_TOPIC
+          value: "bluesky-events"
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: firehose-consumer-config

@@ -1,0 +1,45 @@
+# Multi-platform Dockerfile for Bluesky Storage Worker
+FROM --platform=$BUILDPLATFORM python:3.11-slim AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements-worker.txt /tmp/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --user -r /tmp/requirements-worker.txt
+
+# Final stage
+FROM python:3.11-slim
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Make sure scripts in .local are usable
+ENV PATH=/root/.local/bin:$PATH
+
+# Create app directory
+WORKDIR /app
+
+# Copy application code
+COPY shared/ /app/shared/
+COPY storage_worker/ /app/storage_worker/
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
+# Expose health check port
+EXPOSE 8080
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Run the worker
+CMD ["python", "-m", "storage_worker.storage_worker"]

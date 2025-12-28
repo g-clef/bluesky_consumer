@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-headless
+  namespace: bluesky
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  clusterIP: None
+  selector:
+    app: redpanda
+  ports:
+  - name: kafka
+    port: 9092
+    targetPort: 9092
+  - name: proxy
+    port: 8082
+    targetPort: 8082
+  - name: rpc
+    port: 33145
+    targetPort: 33145
+  - name: admin
+    port: 9644
+    targetPort: 9644
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: bluesky
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  type: ClusterIP
+  selector:
+    app: redpanda
+  ports:
+  - name: kafka
+    port: 9092
+    targetPort: 9092
+  - name: proxy
+    port: 8082
+    targetPort: 8082
+  - name: admin
+    port: 9644
+    targetPort: 9644

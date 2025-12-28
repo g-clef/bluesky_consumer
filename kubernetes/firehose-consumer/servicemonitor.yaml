@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: firehose-consumer
+  namespace: bluesky
+  labels:
+    app: firehose-consumer
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector:
+    matchLabels:
+      app: firehose-consumer
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s

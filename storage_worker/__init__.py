@@ -1,0 +1,1 @@
+"""Storage worker service - consumes from Kafka and writes to S3."""
