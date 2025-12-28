@@ -4,7 +4,7 @@ import boto3
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from typing import List, Dict, Any
 import os
@@ -119,7 +119,7 @@ class S3Writer:
 
     def _generate_s3_key(self) -> str:
         """Generate S3 key with partitioning."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Format partition path
         partition_path = self.storage_config.partition_format.format(
