@@ -8,7 +8,11 @@ metadata:
 data:
   firehose-consumer.yaml: |
     firehose:
-      endpoint: wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos
+      # Jetstream endpoint with collection filtering
+      # Filters for: posts, likes, reposts, follows, blocks
+      # Note: Posts include regular posts, replies, and quote posts (all same type)
+      # Note: Mutes are private state and not available in firehose
+      endpoint: wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post&wantedCollections=app.bsky.feed.like&wantedCollections=app.bsky.feed.repost&wantedCollections=app.bsky.graph.follow&wantedCollections=app.bsky.graph.block
       reconnect_delay: 5
       max_reconnect_delay: 300
 

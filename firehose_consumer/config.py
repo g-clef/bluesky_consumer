@@ -9,6 +9,7 @@ class FirehoseConfig:
     endpoint: str
     reconnect_delay: int
     max_reconnect_delay: int
+    wanted_collections: Optional[str] = None
 
 
 @dataclass
@@ -37,11 +38,15 @@ class Config:
             with open(config_path, 'r') as f:
                 data = yaml.safe_load(f)
         else:
+            # Default configuration with collection filtering
+            # Includes: posts, likes, reposts, follows, blocks
+            collections = 'app.bsky.feed.post,app.bsky.feed.like,app.bsky.feed.repost,app.bsky.graph.follow,app.bsky.graph.block'
             data = {
                 'firehose': {
-                    'endpoint': 'wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos',
+                    'endpoint': f'wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections={collections.replace(",", "&wantedCollections=")}',
                     'reconnect_delay': 5,
                     'max_reconnect_delay': 300,
+                    'wanted_collections': collections,
                 },
                 'kafka': {
                     'bootstrap_servers': 'redpanda.bluesky.svc.cluster.local:9092',

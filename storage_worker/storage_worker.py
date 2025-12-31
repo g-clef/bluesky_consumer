@@ -1,9 +1,11 @@
 import argparse
 import asyncio
+import json
 import logging
 import signal
 import sys
 import time
+from typing import Dict, Any
 from config import Config, S3Config, StorageConfig
 from consumer import EventConsumer, FileConsumer
 from s3_writer import S3Writer
@@ -16,8 +18,42 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class StorageWorker:
+def flatten_json(nested_dict: Dict[str, Any], parent_key: str = '', sep: str = '_') -> Dict[str, Any]:
+    """
+    Flatten a nested JSON dictionary.
 
+    Args:
+        nested_dict: The nested dictionary to flatten
+        parent_key: The parent key prefix (used in recursion)
+        sep: Separator between nested keys (default: '_')
+
+    Returns:
+        Flattened dictionary with no nested structures
+    """
+    items = []
+    for key, value in nested_dict.items():
+        new_key = f"{parent_key}{sep}{key}" if parent_key else key
+
+        if isinstance(value, dict):
+            # Recursively flatten nested dictionaries
+            items.extend(flatten_json(value, new_key, sep=sep).items())
+        elif isinstance(value, list):
+            # Flatten items in the list
+            if value and isinstance(value[0], dict):
+                # List of dicts - flatten each dict
+                flattened_list = [flatten_json(item, sep=sep) if isinstance(item, dict) else item for item in value]
+                items.append((new_key, flattened_list))
+            else:
+                # List of primitives - keep as-is
+                items.append((new_key, value))
+        else:
+            # Keep primitive values as-is
+            items.append((new_key, value))
+
+    return dict(items)
+
+
+class StorageWorker:
     def __init__(self, config: Config):
         self.config = config
         self.consumer = EventConsumer(config.kafka)
@@ -30,7 +66,6 @@ class StorageWorker:
         logger.info("Starting storage worker")
 
         await self.health_server.start()
-
         loop = asyncio.get_event_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
@@ -41,17 +76,31 @@ class StorageWorker:
         await self.process()
 
     async def process(self):
-        logger.info("Starting to consume events from Kafka")
+        logger.info("Starting to consume Jetstream JSON events from Kafka")
 
         while self.running:
             try:
-                for event in self.consumer.consume():
-                    self.writer.add_event(event)
-                    if self.writer.should_flush():
-                        if self.writer.flush():
-                            self.consumer.commit()
-                            self.last_flush_time = time.time()
+                for message_bytes in self.consumer.consume():
+                    try:
+                        jetstream_event = json.loads(message_bytes.decode('utf-8'))
 
+                        # Flatten the JSON event
+                        flattened_event = flatten_json(jetstream_event)
+
+                        # Add timestamp in milliseconds for convenience
+                        if 'time_us' in flattened_event:
+                            flattened_event['event_timestamp_ms'] = flattened_event['time_us'] // 1000
+
+                        self.writer.add_event(flattened_event)
+
+                        if self.writer.should_flush():
+                            if self.writer.flush():
+                                self.consumer.commit()
+                                self.last_flush_time = time.time()
+
+                    except Exception as e:
+                        logger.error(f"Error parsing/flattening message: {e}", exc_info=True)
+                        continue
                 current_time = time.time()
                 time_since_flush = current_time - self.last_flush_time
                 if time_since_flush >= self.config.storage.flush_interval_seconds:
@@ -107,13 +156,29 @@ class TestWorker:
         await self.process()
 
     async def process(self):
-        logger.info("Processing events from file")
+        logger.info("Processing Jetstream JSON events from file")
 
         try:
-            for event in self.consumer.consume():
-                self.writer.add_event(event)
-                if self.writer.should_flush():
-                    self.writer.flush()
+            for message_bytes in self.consumer.consume():
+                try:
+                    jetstream_event = json.loads(message_bytes.decode('utf-8'))
+
+                    # Flatten the JSON event
+                    flattened_event = flatten_json(jetstream_event)
+
+                    # Add timestamp in milliseconds for convenience
+                    if 'time_us' in flattened_event:
+                        flattened_event['event_timestamp_ms'] = flattened_event['time_us'] // 1000
+
+                    self.writer.add_event(flattened_event)
+
+                    if self.writer.should_flush():
+                        self.writer.flush()
+
+                except Exception as e:
+                    logger.error(f"Error parsing/flattening message: {e}", exc_info=True)
+                    continue
+
             if self.writer.get_buffer_size() > 0:
                 logger.info(f"Flushing final {self.writer.get_buffer_size()} events")
                 self.writer.flush()
@@ -149,7 +214,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--input-file',
         type=str,
-        help='Input file containing JSON events (required for test mode)'
+        help='Input file containing JSON-encoded Jetstream events (required for test mode)'
     )
     parser.add_argument(
         '--output-dir',
