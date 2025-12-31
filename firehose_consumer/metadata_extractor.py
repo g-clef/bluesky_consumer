@@ -8,8 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 class MetadataExtractor:
-    """Extract metadata from firehose events."""
-
     def extract(self, message: Union[
         models.ComAtprotoSyncSubscribeRepos.Commit,
         models.ComAtprotoSyncSubscribeRepos.Identity,
@@ -74,8 +72,8 @@ class MetadataExtractor:
                             if facets:
                                 event["facets"] = facets
 
-                            if "embed" in record_data:
-                                embed = record_data["embed"]
+                            embed = record_data.get("embed", {})
+                            if embed:
                                 event["embed_type"] = embed.get("py_type") or embed.get("$type")
                                 event["embed"] = embed
 

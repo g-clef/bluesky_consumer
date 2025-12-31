@@ -1,13 +1,16 @@
 """Main firehose consumer - connects to Bluesky and produces to Kafka."""
+import argparse
 import asyncio
+import json
 import logging
 import signal
 import sys
+import time
 from atproto import FirehoseSubscribeReposClient, parse_subscribe_repos_message
-from .config import Config
-from .producer import EventProducer
-from .metadata_extractor import MetadataExtractor
-from .health import HealthServer, events_received, connection_status, reconnections
+from config import Config
+from producer import EventProducer
+from metadata_extractor import MetadataExtractor
+from health import HealthServer, events_received, connection_status, reconnections, processing_lag_seconds
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,8 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 class FirehoseConsumer:
-    """Main firehose consumer service."""
-
     def __init__(self, config: Config):
         self.config = config
         self.producer = EventProducer(config.kafka)
@@ -28,7 +29,6 @@ class FirehoseConsumer:
         self.reconnect_delay = config.firehose.reconnect_delay
 
     async def start(self):
-        """Start the consumer."""
         logger.info("Starting firehose consumer")
         await self.health_server.start()
         loop = asyncio.get_event_loop()
@@ -38,12 +38,17 @@ class FirehoseConsumer:
         await self.consume()
 
     def on_message_handler(self, message):
-        """Handle incoming firehose message."""
         try:
             events_received.inc()
             commit = parse_subscribe_repos_message(message)
             events = self.extractor.extract(commit)
             if events:
+                # Calculate processing lag from first event's timestamp
+                current_time_ms = time.time() * 1000
+                event_time_ms = events[0].get('event_timestamp', current_time_ms)
+                lag_seconds = (current_time_ms - event_time_ms) / 1000.0
+                processing_lag_seconds.set(lag_seconds)
+
                 for event in events:
                     self.producer.send(event)
 
@@ -51,7 +56,6 @@ class FirehoseConsumer:
             logger.error(f"Error processing message: {e}", exc_info=True)
 
     async def consume(self):
-        """Main consumption loop with reconnection logic."""
         while self.running:
             try:
                 logger.info(f"Connecting to firehose at {self.config.firehose.endpoint}")
@@ -90,8 +94,46 @@ class FirehoseConsumer:
         sys.exit(0)
 
 
+async def test_local(max_events: int = 10):
+    logger.info(f"Starting local test mode - will consume {max_events} events")
+
+    extractor = MetadataExtractor()
+    event_count = 0
+
+    def on_message(message):
+        nonlocal event_count
+        try:
+            commit = parse_subscribe_repos_message(message)
+            events = extractor.extract(commit)
+
+            if events:
+                for event in events:
+                    event_count += 1
+                    print(f"\n--- Event {event_count} ---")
+                    print(json.dumps(event, indent=2, default=str))
+
+                    if event_count >= max_events:
+                        logger.info(f"Reached {max_events} events, stopping...")
+                        client.stop()
+                        return
+
+        except Exception as e:
+            logger.error(f"Error processing message: {e}", exc_info=True)
+
+    try:
+        logger.info("Connecting to Bluesky firehose...")
+        client = FirehoseSubscribeReposClient()
+        logger.info("Connected! Consuming events...")
+        client.start(on_message)
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user")
+    except Exception as e:
+        logger.error(f"Error: {e}", exc_info=True)
+    finally:
+        logger.info(f"Total events consumed: {event_count}")
+
+
 async def main():
-    """Main entry point."""
     config_path = '/config/firehose-consumer.yaml'
     config = Config.from_file(config_path)
 
@@ -100,4 +142,22 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description='Bluesky Firehose Consumer')
+    parser.add_argument(
+        '--test',
+        action='store_true',
+        help='Run in local test mode (no Kafka, prints to console)'
+    )
+    parser.add_argument(
+        '--max-events',
+        type=int,
+        default=10,
+        help='Maximum number of events to consume in test mode (default: 10)'
+    )
+
+    args = parser.parse_args()
+
+    if args.test:
+        asyncio.run(test_local(args.max_events))
+    else:
+        asyncio.run(main())

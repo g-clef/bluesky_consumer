@@ -11,11 +11,10 @@ events_produced = Counter('bluesky_firehose_events_produced_total', 'Total event
 connection_status = Gauge('bluesky_firehose_connection_status', 'Connection status (1=connected, 0=disconnected)')
 reconnections = Counter('bluesky_firehose_reconnections_total', 'Total number of reconnections')
 producer_errors = Counter('bluesky_producer_errors_total', 'Total producer errors')
+processing_lag_seconds = Gauge('bluesky_firehose_processing_lag_seconds', 'Time lag between event timestamp and processing time in seconds')
 
 
 class HealthServer:
-    """HTTP server for health checks and metrics."""
-
     def __init__(self, port: int):
         self.port = port
         self.ready = False
@@ -26,22 +25,18 @@ class HealthServer:
         self.runner = None
 
     async def liveness(self, request):
-        """Liveness probe - is the process alive?"""
         return web.Response(text='ok')
 
     async def readiness(self, request):
-        """Readiness probe - is it connected to firehose?"""
         if self.ready:
             return web.Response(text='ready')
         return web.Response(text='not ready', status=503)
 
     async def metrics(self, request):
-        """Prometheus metrics endpoint."""
         metrics_output = generate_latest()
         return web.Response(body=metrics_output, content_type=CONTENT_TYPE_LATEST)
 
     async def start(self):
-        """Start the health check server."""
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
         site = web.TCPSite(self.runner, '0.0.0.0', self.port)
@@ -49,10 +44,8 @@ class HealthServer:
         logger.info(f"Health check server started on port {self.port}")
 
     async def stop(self):
-        """Stop the health check server."""
         if self.runner:
             await self.runner.cleanup()
 
     def set_ready(self, ready: bool):
-        """Set readiness status."""
         self.ready = ready
