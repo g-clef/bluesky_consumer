@@ -5,7 +5,6 @@ from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTEN
 
 logger = logging.getLogger(__name__)
 
-# Metrics
 events_consumed = Counter('bluesky_storage_events_consumed_total', 'Total events consumed from Kafka')
 events_written = Counter('bluesky_storage_events_written_total', 'Total events written to S3')
 batches_written = Counter('bluesky_storage_batches_written_total', 'Total batches written to S3')
@@ -15,7 +14,6 @@ buffer_size = Gauge('bluesky_storage_buffer_size', 'Current buffer size')
 
 
 class HealthServer:
-    """HTTP server for health checks and metrics."""
 
     def __init__(self, port: int):
         self.port = port
@@ -27,22 +25,18 @@ class HealthServer:
         self.runner = None
 
     async def liveness(self, request):
-        """Liveness probe - is the process alive?"""
         return web.Response(text='ok')
 
     async def readiness(self, request):
-        """Readiness probe - is it connected to Kafka?"""
         if self.ready:
             return web.Response(text='ready')
         return web.Response(text='not ready', status=503)
 
     async def metrics(self, request):
-        """Prometheus metrics endpoint."""
         metrics_output = generate_latest()
         return web.Response(body=metrics_output, content_type=CONTENT_TYPE_LATEST)
 
     async def start(self):
-        """Start the health check server."""
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
         site = web.TCPSite(self.runner, '0.0.0.0', self.port)
@@ -50,10 +44,8 @@ class HealthServer:
         logger.info(f"Health check server started on port {self.port}")
 
     async def stop(self):
-        """Stop the health check server."""
         if self.runner:
             await self.runner.cleanup()
 
     def set_ready(self, ready: bool):
-        """Set readiness status."""
         self.ready = ready

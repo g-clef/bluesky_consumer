@@ -1,4 +1,3 @@
-"""Extract metadata from AT Protocol events."""
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Union, List
@@ -7,12 +6,15 @@ from atproto import CAR, models, AtUri
 logger = logging.getLogger(__name__)
 
 
-class MetadataExtractor:
-    def extract(self, message: Union[
+PossibleMessageTypes = Union[
         models.ComAtprotoSyncSubscribeRepos.Commit,
         models.ComAtprotoSyncSubscribeRepos.Identity,
         models.ComAtprotoSyncSubscribeRepos.Account,
-    ]) -> Optional[List[Dict[str, Any]]]:
+    ]
+
+
+class MetadataExtractor:
+    def extract(self, message: PossibleMessageTypes) -> Optional[List[Dict[str, Any]]]:
         """
         Extract metadata from a firehose message.
 
@@ -29,7 +31,6 @@ class MetadataExtractor:
             return None
 
     def _extract_commit(self, message: models.ComAtprotoSyncSubscribeRepos.Commit) -> Optional[List[Dict[str, Any]]]:
-        """Extract metadata from a commit event."""
         try:
             blocks = CAR.from_bytes(message.blocks).blocks
 
@@ -102,7 +103,6 @@ class MetadataExtractor:
             return None
 
     def _extract_identity(self, message: models.ComAtprotoSyncSubscribeRepos.Identity) -> List[Dict[str, Any]]:
-        """Extract metadata from an identity event."""
         return [{
             "event_type": "identity",
             "did": message.did,
@@ -113,7 +113,6 @@ class MetadataExtractor:
         }]
 
     def _extract_account(self, message: models.ComAtprotoSyncSubscribeRepos.Account) -> List[Dict[str, Any]]:
-        """Extract metadata from an account event."""
         return [{
             "event_type": "account",
             "did": message.did,
@@ -126,7 +125,6 @@ class MetadataExtractor:
 
     @staticmethod
     def _parse_time(time_str: Optional[str]) -> int:
-        """Parse ISO timestamp to Unix milliseconds."""
         if not time_str:
             return int(datetime.now(timezone.utc).timestamp() * 1000)
         try:

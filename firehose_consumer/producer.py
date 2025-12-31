@@ -1,4 +1,3 @@
-"""Kafka producer wrapper."""
 import logging
 import json
 from kafka import KafkaProducer

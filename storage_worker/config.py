@@ -1,4 +1,3 @@
-"""Configuration management for storage worker."""
 import os
 import yaml
 from dataclasses import dataclass
@@ -7,7 +6,6 @@ from typing import Optional
 
 @dataclass
 class KafkaConfig:
-    """Kafka consumer configuration."""
     bootstrap_servers: str
     topic: str
     group_id: str
@@ -17,7 +15,6 @@ class KafkaConfig:
 
 @dataclass
 class S3Config:
-    """S3 storage configuration."""
     endpoint_url: str
     bucket: str
     region: str
@@ -27,7 +24,6 @@ class S3Config:
 
 @dataclass
 class StorageConfig:
-    """Storage behavior configuration."""
     buffer_size: int
     flush_interval_seconds: int
     partition_format: str
@@ -35,13 +31,11 @@ class StorageConfig:
 
 @dataclass
 class HealthConfig:
-    """Health check server configuration."""
     port: int
 
 
 @dataclass
 class Config:
-    """Main configuration."""
     kafka: KafkaConfig
     s3: S3Config
     storage: StorageConfig
@@ -49,12 +43,10 @@ class Config:
 
     @classmethod
     def from_file(cls, config_path: Optional[str] = None) -> 'Config':
-        """Load configuration from file or environment."""
         if config_path and os.path.exists(config_path):
             with open(config_path, 'r') as f:
                 data = yaml.safe_load(f)
         else:
-            # Default configuration
             data = {
                 'kafka': {
                     'bootstrap_servers': 'redpanda.bluesky.svc.cluster.local:9092',
@@ -80,7 +72,6 @@ class Config:
                 }
             }
 
-        # Override with environment variables
         if 'KAFKA_BOOTSTRAP_SERVERS' in os.environ:
             data['kafka']['bootstrap_servers'] = os.environ['KAFKA_BOOTSTRAP_SERVERS']
         if 'S3_ENDPOINT_URL' in os.environ:

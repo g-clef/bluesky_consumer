@@ -1,4 +1,3 @@
-"""Configuration management for firehose consumer."""
 import os
 import yaml
 from dataclasses import dataclass
@@ -7,7 +6,6 @@ from typing import Optional
 
 @dataclass
 class FirehoseConfig:
-    """Firehose connection configuration."""
     endpoint: str
     reconnect_delay: int
     max_reconnect_delay: int
@@ -15,7 +13,6 @@ class FirehoseConfig:
 
 @dataclass
 class KafkaConfig:
-    """Kafka producer configuration."""
     bootstrap_servers: str
     topic: str
     compression_type: str
@@ -25,25 +22,21 @@ class KafkaConfig:
 
 @dataclass
 class HealthConfig:
-    """Health check server configuration."""
     port: int
 
 
 @dataclass
 class Config:
-    """Main configuration."""
     firehose: FirehoseConfig
     kafka: KafkaConfig
     health: HealthConfig
 
     @classmethod
     def from_file(cls, config_path: Optional[str] = None) -> 'Config':
-        """Load configuration from file or environment."""
         if config_path and os.path.exists(config_path):
             with open(config_path, 'r') as f:
                 data = yaml.safe_load(f)
         else:
-            # Default configuration
             data = {
                 'firehose': {
                     'endpoint': 'wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos',
@@ -62,7 +55,6 @@ class Config:
                 }
             }
 
-        # Override with environment variables if present
         if 'KAFKA_BOOTSTRAP_SERVERS' in os.environ:
             data['kafka']['bootstrap_servers'] = os.environ['KAFKA_BOOTSTRAP_SERVERS']
         if 'KAFKA_TOPIC' in os.environ:

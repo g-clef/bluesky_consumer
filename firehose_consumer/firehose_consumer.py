@@ -1,4 +1,3 @@
-"""Main firehose consumer - connects to Bluesky and produces to Kafka."""
 import argparse
 import asyncio
 import json
@@ -123,7 +122,7 @@ async def test_local(max_events: int = 10):
     try:
         logger.info("Connecting to Bluesky firehose...")
         client = FirehoseSubscribeReposClient()
-        logger.info("Connected! Consuming events...")
+        logger.info("Connected. Consuming events...")
         client.start(on_message)
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
