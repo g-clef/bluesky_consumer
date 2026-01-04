@@ -124,6 +124,7 @@ async def test_local(max_events: int = 10, output_file: str = None, endpoint: st
         output = None
 
     event_count = 0
+    websocket = None
 
     try:
         logger.info(f"Connecting to Jetstream at {endpoint}...")
@@ -144,6 +145,8 @@ async def test_local(max_events: int = 10, output_file: str = None, endpoint: st
                         print(message)
                     if event_count >= max_events:
                         logger.info(f"Reached {max_events} events, stopping...")
+                        # Close the websocket immediately to avoid hanging
+                        await asyncio.wait_for(websocket.close(), timeout=2.0)
                         break
 
                 except Exception as e:
@@ -151,6 +154,8 @@ async def test_local(max_events: int = 10, output_file: str = None, endpoint: st
 
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
+    except asyncio.TimeoutError:
+        logger.info("Websocket close timed out, forcing exit")
     except Exception as e:
         logger.error(f"Error: {e}", exc_info=True)
     finally:
