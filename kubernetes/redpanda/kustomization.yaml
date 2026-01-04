@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: bluesky
 
 resources:
+  - pv.yaml
   - configmap.yaml
   - statefulset.yaml
   - service.yaml
