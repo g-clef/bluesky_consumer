@@ -1,0 +1,60 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: datadir-redpanda-0
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: minio-nfs
+  claimRef:
+    namespace: bluesky
+    name: datadir-redpanda-0
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    path: /volume1/minio/redpanda/data-0
+    server: 192.168.1.197
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: datadir-redpanda-1
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: minio-nfs
+  claimRef:
+    namespace: bluesky
+    name: datadir-redpanda-1
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    path: /volume1/minio/redpanda/data-1
+    server: 192.168.1.197
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: datadir-redpanda-2
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: minio-nfs
+  claimRef:
+    namespace: bluesky
+    name: datadir-redpanda-2
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    path: /volume1/minio/redpanda/data-2
+    server: 192.168.1.197
