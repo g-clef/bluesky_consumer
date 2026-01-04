@@ -9,10 +9,9 @@ resources:
   - service.yaml
   - servicemonitor.yaml
 
-commonLabels:
-  app: firehose-consumer
-  component: consumer
+labels:
+  - pairs:
+      app: firehose-consumer
+      component: consumer
 
-commonAnnotations:
-  app.kubernetes.io/part-of: bluesky-consumer
-  app.kubernetes.io/managed-by: argocd
+buildMetadata: [managedByLabel]

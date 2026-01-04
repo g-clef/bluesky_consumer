@@ -9,10 +9,9 @@ resources:
   - statefulset.yaml
   - service.yaml
 
-commonLabels:
-  app: redpanda
-  component: messaging
+labels:
+  - pairs:
+      app: redpanda
+      component: messaging
 
-commonAnnotations:
-  app.kubernetes.io/part-of: bluesky-consumer
-  app.kubernetes.io/managed-by: argocd
+buildMetadata: [managedByLabel]

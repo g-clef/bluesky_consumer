@@ -11,10 +11,9 @@ resources:
   - servicemonitor.yaml
   - hpa.yaml
 
-commonLabels:
-  app: storage-worker
-  component: worker
+labels:
+  - pairs:
+      app: storage-worker
+      component: worker
 
-commonAnnotations:
-  app.kubernetes.io/part-of: bluesky-consumer
-  app.kubernetes.io/managed-by: argocd
+buildMetadata: [managedByLabel]
