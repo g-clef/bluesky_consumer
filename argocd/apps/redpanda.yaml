@@ -1,31 +1,28 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: bluesky-consumer
+  name: bluesky-redpanda
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: "-2"
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   project: default
 
   source:
     repoURL: https://github.com/g-clef/bluesky_consumer
     targetRevision: main
-    path: argocd/apps
-    directory:
-      recurse: false
+    path: kubernetes/redpanda
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: bluesky
 
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-      allowEmpty: false
     syncOptions:
       - CreateNamespace=true
     retry:
@@ -34,3 +31,9 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/replicas

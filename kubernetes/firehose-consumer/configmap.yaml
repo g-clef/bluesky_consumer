@@ -8,13 +8,10 @@ metadata:
 data:
   firehose-consumer.yaml: |
     firehose:
-      # Jetstream endpoint with collection filtering
-      # Filters for: posts, likes, reposts, follows, blocks
-      # Note: Posts include regular posts, replies, and quote posts (all same type)
-      # Note: Mutes are private state and not available in firehose
-      endpoint: wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.post&wantedCollections=app.bsky.feed.like&wantedCollections=app.bsky.feed.repost&wantedCollections=app.bsky.graph.follow&wantedCollections=app.bsky.graph.block
+      endpoint: wss://jetstream2.us-east.bsky.network/subscribe
       reconnect_delay: 5
       max_reconnect_delay: 300
+      wanted_collections: app.bsky.feed.post,app.bsky.feed.like,app.bsky.feed.repost,app.bsky.graph.follow,app.bsky.graph.block
 
     kafka:
       bootstrap_servers: redpanda.bluesky.svc.cluster.local:9092

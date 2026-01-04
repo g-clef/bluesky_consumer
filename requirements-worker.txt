@@ -1,4 +1,3 @@
-# Storage Worker Requirements
 kafka-python>=2.0.2
 boto3>=1.34.0
 pyarrow>=14.0.2

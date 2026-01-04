@@ -40,6 +40,8 @@ env/
 
 # Kubernetes secrets (actual values)
 kubernetes/*/secret.yaml
+pub-cert.pem
+sealed-secrets-key-backup.yaml
 
 # OS
 .DS_Store

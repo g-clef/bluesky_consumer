@@ -25,6 +25,15 @@ class FirehoseConsumer:
         self.running = False
         self.reconnect_delay = config.firehose.reconnect_delay
 
+    def _build_endpoint_url(self) -> str:
+        """Build the full endpoint URL with wanted collections query parameters."""
+        base_url = self.config.firehose.endpoint
+        if self.config.firehose.wanted_collections:
+            collections = self.config.firehose.wanted_collections.split(',')
+            query_params = '&'.join([f'wantedCollections={c.strip()}' for c in collections])
+            return f'{base_url}?{query_params}'
+        return base_url
+
     async def start(self):
         logger.info("Starting Jetstream consumer")
         await self.health_server.start()
@@ -37,11 +46,12 @@ class FirehoseConsumer:
     async def consume(self):
         while self.running:
             try:
-                logger.info(f"Connecting to Jetstream at {self.config.firehose.endpoint}")
+                endpoint_url = self._build_endpoint_url()
+                logger.info(f"Connecting to Jetstream at {endpoint_url}")
                 connection_status.set(0)
 
                 async with websockets.connect(
-                    self.config.firehose.endpoint,
+                    endpoint_url,
                     max_size=10 * 1024 * 1024,  # 10MB max message size
                     ping_interval=20,
                     ping_timeout=10,
