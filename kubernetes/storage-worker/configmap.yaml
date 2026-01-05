@@ -8,7 +8,7 @@ metadata:
 data:
   storage-worker.yaml: |
     kafka:
-      bootstrap_servers: redpanda.bluesky.svc.cluster.local:9092
+      bootstrap_servers: kafka.bluesky.svc.cluster.local:9092
       topic: bluesky-events
       group_id: bluesky-storage-workers
       auto_offset_reset: earliest

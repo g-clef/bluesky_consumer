@@ -11,7 +11,7 @@ resources:
 
 labels:
   - pairs:
-      app: redpanda
+      app: kafka
       component: messaging
 
 buildMetadata: [managedByLabel]

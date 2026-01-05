@@ -24,7 +24,7 @@ spec:
           name: http
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
-          value: "redpanda.bluesky.svc.cluster.local:9092"
+          value: "kafka.bluesky.svc.cluster.local:9092"
         - name: KAFKA_TOPIC
           value: "bluesky-events"
         volumeMounts:

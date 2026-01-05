@@ -14,7 +14,7 @@ data:
       wanted_collections: app.bsky.feed.post,app.bsky.feed.like,app.bsky.feed.repost,app.bsky.graph.follow,app.bsky.graph.block
 
     kafka:
-      bootstrap_servers: redpanda.bluesky.svc.cluster.local:9092
+      bootstrap_servers: kafka.bluesky.svc.cluster.local:9092
       topic: bluesky-events
       compression_type: snappy
       batch_size: 1000
