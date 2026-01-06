@@ -8,6 +8,9 @@ metadata:
 spec:
   serviceName: kafka-headless
   replicas: 3
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: OnDelete
   selector:
     matchLabels:
       app: kafka
