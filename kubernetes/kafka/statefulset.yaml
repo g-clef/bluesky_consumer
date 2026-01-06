@@ -46,8 +46,9 @@ spec:
 
             echo "Formatting storage for node ${NODE_ID}"
 
-            # Create temporary server.properties
+            # Create temporary server.properties with node.id
             cat > /tmp/server.properties <<EOF
+            node.id=${NODE_ID}
             process.roles=broker,controller
             controller.quorum.voters=0@kafka-0.kafka-headless.bluesky.svc.cluster.local:9093,1@kafka-1.kafka-headless.bluesky.svc.cluster.local:9093,2@kafka-2.kafka-headless.bluesky.svc.cluster.local:9093
             listeners=PLAINTEXT://:9092,CONTROLLER://:9093
@@ -59,7 +60,6 @@ spec:
             # Format the storage
             /opt/kafka/bin/kafka-storage.sh format \
               --cluster-id bluesky-kafka-cluster \
-              --node-id ${NODE_ID} \
               --config /tmp/server.properties
 
             echo "Storage formatted successfully for node ${NODE_ID}"
