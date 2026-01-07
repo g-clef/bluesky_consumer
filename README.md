@@ -9,7 +9,7 @@ Bluesky Firehose (WebSocket)
     ↓
 Firehose Consumer (1 pod)
     ↓
-Redpanda (3-node cluster)
+Kafka (3-node cluster)
     ↓
 Storage Workers (3-10 pods, auto-scaling)
     ↓
@@ -19,7 +19,7 @@ MinIO S3 (Parquet files)
 ### Components
 
 1. **Firehose Consumer** - Single pod that connects to the Bluesky WebSocket firehose and produces events to Redpanda
-2. **Redpanda** - Kafka-compatible message broker for buffering and distributing events
+2. **Kafka** - Kafka message broker for buffering and distributing events
 3. **Storage Workers** - Horizontally scalable workers that consume from Redpanda and write batched Parquet files to S3
 4. **MinIO S3** - Object storage for Parquet data files (partitioned by time)
 
@@ -125,7 +125,7 @@ kubectl get --raw /apis/custom.metrics.k8s.io/v1beta1/namespaces/bluesky/pods/*/
 ```bash
 # Apply all manifests
 kubectl apply -f kubernetes/namespace.yaml
-kubectl apply -f kubernetes/redpanda/
+kubectl apply -f kubernetes/kafka/
 kubectl apply -f kubernetes/firehose-consumer/
 kubectl apply -f kubernetes/storage-worker/
 
