@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir --user -r /tmp/requirements-firehose.txt
 FROM python:3.11-slim
 WORKDIR /app
 COPY shared/ /app/shared/
-COPY firehose_consumer/ /app/firehose_consumer/
+COPY firehose_consumer/ /app/
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 COPY --from=builder /root/.local /home/appuser/.local
@@ -21,4 +21,4 @@ EXPOSE 8080
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "-m", "firehose_consumer.firehose_consumer"]
+CMD ["python", "firehose_consumer.py"]

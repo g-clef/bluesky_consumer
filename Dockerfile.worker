@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir --user -r /tmp/requirements-worker.txt
 FROM python:3.11-slim
 WORKDIR /app
 COPY shared/ /app/shared/
-COPY storage_worker/ /app/storage_worker/
+COPY storage_worker/ /app/
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 COPY --from=builder /root/.local /home/appuser/.local
@@ -21,4 +21,4 @@ EXPOSE 8080
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "-m", "storage_worker.storage_worker"]
+CMD ["python", "storage_worker.py"]
