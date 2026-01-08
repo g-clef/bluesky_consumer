@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: firehose-consumer
-        image: gclef/bluesky-firehose-consumer:0.0.5
+        image: gclef/bluesky-firehose-consumer:0.0.6
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
