@@ -84,10 +84,8 @@ class StorageWorker:
                     try:
                         jetstream_event = json.loads(message_bytes.decode('utf-8'))
 
-                        # Flatten the JSON event
                         flattened_event = flatten_json(jetstream_event)
 
-                        # Add timestamp in milliseconds for convenience
                         if 'time_us' in flattened_event:
                             flattened_event['event_timestamp_ms'] = flattened_event['time_us'] // 1000
 

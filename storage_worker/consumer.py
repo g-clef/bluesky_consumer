@@ -1,7 +1,6 @@
 import json
 import logging
-from kafka import KafkaConsumer
-from kafka.errors import KafkaError
+from confluent_kafka import Consumer, KafkaException, KafkaError as ConfluentKafkaError
 from typing import Iterator, List
 from config import KafkaConfig
 from health import events_consumed
@@ -19,35 +18,42 @@ class EventConsumer:
 
     def _connect(self):
         try:
-            self.consumer = KafkaConsumer(
-                self.config.topic,
-                bootstrap_servers=self.config.bootstrap_servers,
-                group_id=self.config.group_id,
-                auto_offset_reset=self.config.auto_offset_reset,
-                enable_auto_commit=self.config.enable_auto_commit,
-                # No deserializer - we receive raw bytes
-                consumer_timeout_ms=1000,
-                max_poll_records=500,
-            )
+            consumer_config = {
+                'bootstrap.servers': self.config.bootstrap_servers,
+                'group.id': self.config.group_id,
+                'auto.offset.reset': self.config.auto_offset_reset,
+                'enable.auto.commit': self.config.enable_auto_commit,
+                'max.poll.interval.ms': 300000,
+            }
+            self.consumer = Consumer(consumer_config)
+            self.consumer.subscribe([self.config.topic])
             logger.info(f"Connected to Kafka at {self.config.bootstrap_servers}, topic: {self.config.topic}")
-        except KafkaError as e:
+        except Exception as e:
             logger.error(f"Failed to connect to Kafka: {e}")
             raise
 
     def consume(self) -> Iterator[bytes]:
-        """Consume raw message bytes from Kafka."""
-        try:
-            for message in self.consumer:
+        while True:
+            try:
+                msg = self.consumer.poll(timeout=1.0)
+                if msg is None:
+                    continue
+                if msg.error():
+                    if msg.error().code() == ConfluentKafkaError._PARTITION_EOF:
+                        continue
+                    else:
+                        raise KafkaException(msg.error())
+
                 events_consumed.inc()
-                yield message.value
-        except KafkaError as e:
-            logger.error(f"Error consuming from Kafka: {e}")
-            raise
+                yield msg.value()
+            except KafkaException as e:
+                logger.error(f"Error consuming from Kafka: {e}")
+                raise
 
     def commit(self):
         try:
-            self.consumer.commit()
-        except KafkaError as e:
+            self.consumer.commit(asynchronous=False)
+        except Exception as e:
             logger.error(f"Error committing offsets: {e}")
             raise
 
@@ -76,8 +82,7 @@ class FileConsumer:
                     continue
 
                 try:
-                    # Validate it's valid JSON, then store as UTF-8 bytes
-                    json.loads(line)  # Validate
+                    json.loads(line)
                     self.messages.append(line.encode('utf-8'))
                 except Exception as e:
                     logger.warning(f"Failed to parse JSON line: {e}")

@@ -43,6 +43,9 @@ class FirehoseConsumer:
         self.running = True
         await self.consume()
 
+    def send_event(self, event):
+        self.producer.send(event)
+
     async def consume(self):
         while self.running:
             try:
