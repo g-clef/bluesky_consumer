@@ -32,23 +32,23 @@ class EventConsumer:
             logger.error(f"Failed to connect to Kafka: {e}")
             raise
 
-    def consume(self) -> Iterator[bytes]:
-        while True:
-            try:
-                msg = self.consumer.poll(timeout=1.0)
-                if msg is None:
-                    continue
-                if msg.error():
-                    if msg.error().code() == ConfluentKafkaError._PARTITION_EOF:
-                        continue
-                    else:
-                        raise KafkaException(msg.error())
+    def poll_message(self, timeout: float = 1.0):
+        """Poll for a single message from Kafka. Returns None if no message available."""
+        try:
+            msg = self.consumer.poll(timeout=timeout)
+            if msg is None:
+                return None
+            if msg.error():
+                if msg.error().code() == ConfluentKafkaError._PARTITION_EOF:
+                    return None
+                else:
+                    raise KafkaException(msg.error())
 
-                events_consumed.inc()
-                yield msg.value()
-            except KafkaException as e:
-                logger.error(f"Error consuming from Kafka: {e}")
-                raise
+            events_consumed.inc()
+            return msg.value()
+        except KafkaException as e:
+            logger.error(f"Error consuming from Kafka: {e}")
+            raise
 
     def commit(self):
         try:

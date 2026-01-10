@@ -80,7 +80,10 @@ class StorageWorker:
 
         while self.running:
             try:
-                for message_bytes in self.consumer.consume():
+                # Poll for a single message (non-blocking for event loop)
+                message_bytes = self.consumer.poll_message(timeout=0.1)
+
+                if message_bytes is not None:
                     try:
                         jetstream_event = json.loads(message_bytes.decode('utf-8'))
 
@@ -98,7 +101,8 @@ class StorageWorker:
 
                     except Exception as e:
                         logger.error(f"Error parsing/flattening message: {e}", exc_info=True)
-                        continue
+
+                # Check for time-based flush
                 current_time = time.time()
                 time_since_flush = current_time - self.last_flush_time
                 if time_since_flush >= self.config.storage.flush_interval_seconds:
@@ -107,7 +111,8 @@ class StorageWorker:
                             self.consumer.commit()
                             self.last_flush_time = current_time
 
-                await asyncio.sleep(0.1)
+                # Yield control to event loop for health checks
+                await asyncio.sleep(0)
 
             except KeyboardInterrupt:
                 logger.info("Received interrupt signal")

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: storage-worker
-        image: gclef/bluesky-storage-worker:0.0.8
+        image: gclef/bluesky-storage-worker:0.0.9
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
