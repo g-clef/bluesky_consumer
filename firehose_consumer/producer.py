@@ -21,6 +21,8 @@ class EventProducer:
                 'linger.ms': self.config.linger_ms,
                 'acks': 'all',
                 'retries': 3,
+                'queue.buffering.max.messages': 500000,
+                'queue.buffering.max.kbytes': 1048576,  # 1GB buffer
             }
             self.producer = Producer(producer_config)
             logger.info(f"Connected to Kafka at {self.config.bootstrap_servers}")
@@ -36,22 +38,13 @@ class EventProducer:
         else:
             events_produced.inc()
 
-    def send(self, message_bytes: bytes) -> bool:
-        """Send JSON event bytes to Kafka (non-blocking)."""
-        try:
-            self.producer.produce(
-                self.config.topic,
-                value=message_bytes,
-                callback=self._delivery_callback
-            )
-            # Poll to trigger callbacks without blocking
-            self.producer.poll(0)
-            return True
-        except BufferError:
-            # Local queue is full, poll to make space
-            logger.warning("Producer queue full, polling...")
-            self.producer.poll(1)
-            # Retry the send
+    def send(self, message_bytes: bytes, max_retries: int = 10) -> bool:
+        """Send JSON event bytes to Kafka with backpressure handling.
+
+        Uses exponential backoff when the producer queue is full,
+        polling to drain the queue before retrying.
+        """
+        for attempt in range(max_retries + 1):
             try:
                 self.producer.produce(
                     self.config.topic,
@@ -60,14 +53,24 @@ class EventProducer:
                 )
                 self.producer.poll(0)
                 return True
+            except BufferError:
+                if attempt < max_retries:
+                    # Exponential backoff: 0.1s, 0.2s, 0.4s, 0.8s, etc., capped at 5s
+                    wait_time = min(0.1 * (2 ** attempt), 5.0)
+                    logger.warning(
+                        f"Producer queue full, polling for {wait_time:.1f}s "
+                        f"(attempt {attempt + 1}/{max_retries + 1})"
+                    )
+                    self.producer.poll(wait_time)
+                else:
+                    logger.error("Producer queue full after max retries, dropping message")
+                    producer_errors.inc()
+                    return False
             except Exception as e:
-                logger.error(f"Failed to send message after retry: {e}")
+                logger.error(f"Failed to send message to Kafka: {e}")
                 producer_errors.inc()
                 return False
-        except Exception as e:
-            logger.error(f"Failed to send message to Kafka: {e}")
-            producer_errors.inc()
-            return False
+        return False
 
     def flush(self):
         if self.producer:
