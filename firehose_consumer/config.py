@@ -17,7 +17,6 @@ class KafkaConfig:
     bootstrap_servers: str
     topic: str
     compression_type: str
-    batch_size: int
     linger_ms: int
 
 
@@ -50,7 +49,6 @@ class Config:
                     'bootstrap_servers': 'redpanda.bluesky.svc.cluster.local:9092',
                     'topic': 'bluesky-events',
                     'compression_type': 'snappy',
-                    'batch_size': 1000,
                     'linger_ms': 100,
                 },
                 'health': {
