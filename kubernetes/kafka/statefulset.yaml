@@ -103,6 +103,10 @@ spec:
             value: "bluesky-kafka-cluster"
           - name: KAFKA_HEAP_OPTS
             value: "-Xmx1G -Xms1G"
+          - name: KAFKA_NUM_PARTITIONS
+            value: "12"
+          - name: KAFKA_DEFAULT_REPLICATION_FACTOR
+            value: "3"
         ports:
         - containerPort: 9092
           name: kafka

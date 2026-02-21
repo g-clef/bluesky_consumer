@@ -17,7 +17,6 @@ data:
       bootstrap_servers: kafka.bluesky.svc.cluster.local:9092
       topic: bluesky-events
       compression_type: snappy
-      batch_size: 1000
       linger_ms: 100
 
     health:
