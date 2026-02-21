@@ -17,7 +17,6 @@ class EventProducer:
             producer_config = {
                 'bootstrap.servers': self.config.bootstrap_servers,
                 'compression.type': self.config.compression_type,
-                'batch.size': self.config.batch_size,
                 'linger.ms': self.config.linger_ms,
                 'acks': 'all',
                 'retries': 3,
