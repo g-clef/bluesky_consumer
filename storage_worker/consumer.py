@@ -1,8 +1,8 @@
 import json
 import logging
+import config
 from confluent_kafka import Consumer, KafkaException, KafkaError as ConfluentKafkaError
 from typing import Iterator, List
-from config import KafkaConfig
 from health import events_consumed
 
 logger = logging.getLogger(__name__)
@@ -11,23 +11,22 @@ logger = logging.getLogger(__name__)
 class EventConsumer:
     """Kafka consumer for raw firehose messages."""
 
-    def __init__(self, config: KafkaConfig):
-        self.config = config
+    def __init__(self):
         self.consumer = None
         self._connect()
 
     def _connect(self):
         try:
             consumer_config = {
-                'bootstrap.servers': self.config.bootstrap_servers,
-                'group.id': self.config.group_id,
-                'auto.offset.reset': self.config.auto_offset_reset,
-                'enable.auto.commit': self.config.enable_auto_commit,
+                'bootstrap.servers': config.KAFKA_BOOTSTRAP_SERVERS,
+                'group.id': config.KAFKA_GROUP_ID,
+                'auto.offset.reset': config.KAFKA_AUTO_OFFSET_RESET,
+                'enable.auto.commit': config.KAFKA_ENABLE_AUTO_COMMIT,
                 'max.poll.interval.ms': 300000,
             }
             self.consumer = Consumer(consumer_config)
-            self.consumer.subscribe([self.config.topic])
-            logger.info(f"Connected to Kafka at {self.config.bootstrap_servers}, topic: {self.config.topic}")
+            self.consumer.subscribe([config.KAFKA_TOPIC])
+            logger.info(f"Connected to Kafka at {config.KAFKA_BOOTSTRAP_SERVERS}, topic: {config.KAFKA_TOPIC}")
         except Exception as e:
             logger.error(f"Failed to connect to Kafka: {e}")
             raise

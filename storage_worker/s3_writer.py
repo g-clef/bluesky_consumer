@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import os
 import socket
-from config import S3Config, StorageConfig
 from health import events_written, batches_written, s3_write_duration, buffer_size
 
 logger = logging.getLogger(__name__)
@@ -37,9 +36,17 @@ def flatten_dict(d: Dict[str, Any], parent_key: str = '', sep: str = '__') -> Di
 
 class S3Writer:
 
-    def __init__(self, s3_config: S3Config, storage_config: StorageConfig, local_dir: Optional[str] = None):
-        self.s3_config = s3_config
-        self.storage_config = storage_config
+    def __init__(self, endpoint_url: str, bucket: str, region: str,
+                 access_key_id: str, secret_access_key: str,
+                 buffer_size: int, partition_format: str,
+                 local_dir: Optional[str] = None):
+        self.endpoint_url = endpoint_url
+        self.bucket = bucket
+        self.region = region
+        self.access_key_id = access_key_id
+        self.secret_access_key = secret_access_key
+        self._buffer_size = buffer_size
+        self.partition_format = partition_format
         self.buffer: List[Dict[str, Any]] = []
         self.worker_id = self._get_worker_id()
         self.local_dir = Path(local_dir) if local_dir else None
@@ -51,13 +58,13 @@ class S3Writer:
         else:
             self.s3_client = boto3.client(
                 's3',
-                endpoint_url=s3_config.endpoint_url,
-                aws_access_key_id=s3_config.access_key_id,
-                aws_secret_access_key=s3_config.secret_access_key,
-                region_name=s3_config.region
+                endpoint_url=endpoint_url,
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_access_key,
+                region_name=region
             )
 
-            logger.info(f"S3 writer initialized for bucket: {s3_config.bucket}, worker: {self.worker_id}")
+            logger.info(f"S3 writer initialized for bucket: {bucket}, worker: {self.worker_id}")
 
             self._ensure_bucket()
 
@@ -67,12 +74,12 @@ class S3Writer:
 
     def _ensure_bucket(self):
         try:
-            self.s3_client.head_bucket(Bucket=self.s3_config.bucket)
-            logger.info(f"Bucket {self.s3_config.bucket} exists")
+            self.s3_client.head_bucket(Bucket=self.bucket)
+            logger.info(f"Bucket {self.bucket} exists")
         except Exception:
-            logger.info(f"Creating bucket {self.s3_config.bucket}")
+            logger.info(f"Creating bucket {self.bucket}")
             try:
-                self.s3_client.create_bucket(Bucket=self.s3_config.bucket)
+                self.s3_client.create_bucket(Bucket=self.bucket)
             except Exception as create_error:
                 logger.error(f"Failed to create bucket: {create_error}")
 
@@ -81,7 +88,7 @@ class S3Writer:
         buffer_size.set(len(self.buffer))
 
     def should_flush(self) -> bool:
-        return len(self.buffer) >= self.storage_config.buffer_size
+        return len(self.buffer) >= self._buffer_size
 
     def flush(self) -> bool:
         if not self.buffer:
@@ -114,11 +121,11 @@ class S3Writer:
                     parquet_buffer.seek(0)
 
                     self.s3_client.put_object(
-                        Bucket=self.s3_config.bucket,
+                        Bucket=self.bucket,
                         Key=s3_key,
                         Body=parquet_buffer.getvalue()
                     )
-                    logger.info(f"Wrote {event_count} events to s3://{self.s3_config.bucket}/{s3_key}")
+                    logger.info(f"Wrote {event_count} events to s3://{self.bucket}/{s3_key}")
 
                 events_written.inc(event_count)
                 batches_written.inc()
@@ -135,7 +142,7 @@ class S3Writer:
     def _generate_s3_key(self) -> str:
         now = datetime.now(timezone.utc)
 
-        partition_path = self.storage_config.partition_format.format(
+        partition_path = self.partition_format.format(
             year=now.year,
             month=f"{now.month:02d}",
             day=f"{now.day:02d}",

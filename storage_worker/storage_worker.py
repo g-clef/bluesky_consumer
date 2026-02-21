@@ -6,7 +6,7 @@ import signal
 import sys
 import time
 from typing import Dict, Any
-from config import Config, S3Config, StorageConfig
+import config
 from consumer import EventConsumer, FileConsumer
 from s3_writer import S3Writer
 from health import HealthServer
@@ -54,11 +54,18 @@ def flatten_json(nested_dict: Dict[str, Any], parent_key: str = '', sep: str = '
 
 
 class StorageWorker:
-    def __init__(self, config: Config):
-        self.config = config
-        self.consumer = EventConsumer(config.kafka)
-        self.writer = S3Writer(config.s3, config.storage)
-        self.health_server = HealthServer(config.health.port)
+    def __init__(self):
+        self.consumer = EventConsumer()
+        self.writer = S3Writer(
+            endpoint_url=config.S3_ENDPOINT_URL,
+            bucket=config.S3_BUCKET,
+            region=config.S3_REGION,
+            access_key_id=config.S3_ACCESS_KEY_ID,
+            secret_access_key=config.S3_SECRET_ACCESS_KEY,
+            buffer_size=config.STORAGE_BUFFER_SIZE,
+            partition_format=config.STORAGE_PARTITION_FORMAT,
+        )
+        self.health_server = HealthServer(config.HEALTH_PORT)
         self.running = False
         self.last_flush_time = time.time()
 
@@ -105,7 +112,7 @@ class StorageWorker:
                 # Check for time-based flush
                 current_time = time.time()
                 time_since_flush = current_time - self.last_flush_time
-                if time_since_flush >= self.config.storage.flush_interval_seconds:
+                if time_since_flush >= config.STORAGE_FLUSH_INTERVAL_SECONDS:
                     if self.writer.get_buffer_size() > 0:
                         if self.writer.flush():
                             self.consumer.commit()
@@ -135,21 +142,17 @@ class StorageWorker:
 
 class TestWorker:
     def __init__(self, input_file: str, output_dir: str, buffer_size: int = 1000):
-        s3_config = S3Config(
+        self.consumer = FileConsumer(input_file)
+        self.writer = S3Writer(
             endpoint_url="",
+            bucket="",
+            region="",
             access_key_id="",
             secret_access_key="",
-            bucket="",
-            region=""
-        )
-        storage_config = StorageConfig(
             buffer_size=buffer_size,
-            flush_interval_seconds=60,
-            partition_format="year={year}/month={month}/day={day}/hour={hour}"
+            partition_format="year={year}/month={month}/day={day}/hour={hour}",
+            local_dir=output_dir,
         )
-
-        self.consumer = FileConsumer(input_file)
-        self.writer = S3Writer(s3_config, storage_config, local_dir=output_dir)
         self.running = False
         self.last_flush_time = time.time()
 
@@ -200,10 +203,7 @@ async def test_local(input_file: str, output_dir: str, buffer_size: int = 1000):
 
 
 async def main():
-    config_path = '/config/storage-worker.yaml'
-    config = Config.from_file(config_path)
-
-    worker = StorageWorker(config)
+    worker = StorageWorker()
     await worker.start()
 
 

@@ -5,19 +5,3 @@ metadata:
   namespace: bluesky
   annotations:
     argocd.argoproj.io/sync-wave: "0"
-data:
-  firehose-consumer.yaml: |
-    firehose:
-      endpoint: wss://jetstream2.us-east.bsky.network/subscribe
-      reconnect_delay: 5
-      max_reconnect_delay: 300
-      wanted_collections: app.bsky.feed.post,app.bsky.feed.like,app.bsky.feed.repost,app.bsky.graph.follow,app.bsky.graph.block
-
-    kafka:
-      bootstrap_servers: kafka.bluesky.svc.cluster.local:9092
-      topic: bluesky-events
-      compression_type: snappy
-      linger_ms: 100
-
-    health:
-      port: 8080

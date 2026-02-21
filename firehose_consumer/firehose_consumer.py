@@ -6,7 +6,7 @@ import signal
 import sys
 import time
 import websockets
-from config import Config
+import config
 from producer import EventProducer
 from health import HealthServer, events_received, connection_status, reconnections, processing_lag_seconds
 
@@ -18,18 +18,17 @@ logger = logging.getLogger(__name__)
 
 
 class FirehoseConsumer:
-    def __init__(self, config: Config):
-        self.config = config
-        self.producer = EventProducer(config.kafka)
-        self.health_server = HealthServer(config.health.port)
+    def __init__(self):
+        self.producer = EventProducer()
+        self.health_server = HealthServer(config.HEALTH_PORT)
         self.running = False
-        self.reconnect_delay = config.firehose.reconnect_delay
+        self.reconnect_delay = config.FIREHOSE_RECONNECT_DELAY
 
     def _build_endpoint_url(self) -> str:
         """Build the full endpoint URL with wanted collections query parameters."""
-        base_url = self.config.firehose.endpoint
-        if self.config.firehose.wanted_collections:
-            collections = self.config.firehose.wanted_collections.split(',')
+        base_url = config.FIREHOSE_ENDPOINT
+        if config.FIREHOSE_WANTED_COLLECTIONS:
+            collections = config.FIREHOSE_WANTED_COLLECTIONS.split(',')
             query_params = '&'.join([f'wantedCollections={c.strip()}' for c in collections])
             return f'{base_url}?{query_params}'
         return base_url
@@ -63,7 +62,7 @@ class FirehoseConsumer:
                     self.health_server.set_ready(True)
                     logger.info("Connected to Jetstream, consuming events...")
 
-                    self.reconnect_delay = self.config.firehose.reconnect_delay
+                    self.reconnect_delay = config.FIREHOSE_RECONNECT_DELAY
 
                     async for message in websocket:
                         if not self.running:
@@ -100,7 +99,7 @@ class FirehoseConsumer:
 
                     self.reconnect_delay = min(
                         self.reconnect_delay * 2,
-                        self.config.firehose.max_reconnect_delay
+                        config.FIREHOSE_MAX_RECONNECT_DELAY
                     )
                 else:
                     break
@@ -168,9 +167,7 @@ async def test_local(max_events: int = 10, output_file: str = None, endpoint: st
 
 
 async def main():
-    config_path = '/config/firehose-consumer.yaml'
-    config = Config.from_file(config_path)
-    consumer = FirehoseConsumer(config)
+    consumer = FirehoseConsumer()
     await consumer.start()
 
 

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: storage-worker
-        image: gclef/bluesky-storage-worker:0.0.9
+        image: gclef/bluesky-storage-worker:0.0.10
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -39,10 +39,6 @@ spec:
             secretKeyRef:
               name: s3-credentials
               key: secret-access-key
-        volumeMounts:
-        - name: config
-          mountPath: /config
-          readOnly: true
         resources:
           requests:
             cpu: 500m
@@ -62,7 +58,3 @@ spec:
             port: 8080
           initialDelaySeconds: 10
           periodSeconds: 5
-      volumes:
-      - name: config
-        configMap:
-          name: storage-worker-config

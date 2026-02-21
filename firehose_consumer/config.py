@@ -1,68 +1,19 @@
 import os
-import yaml
-from dataclasses import dataclass
-from typing import Optional
 
+FIREHOSE_ENDPOINT = os.environ.get(
+    'FIREHOSE_ENDPOINT',
+    'wss://jetstream2.us-east.bsky.network/subscribe'
+)
+FIREHOSE_RECONNECT_DELAY = int(os.environ.get('FIREHOSE_RECONNECT_DELAY', '5'))
+FIREHOSE_MAX_RECONNECT_DELAY = int(os.environ.get('FIREHOSE_MAX_RECONNECT_DELAY', '300'))
+FIREHOSE_WANTED_COLLECTIONS = os.environ.get(
+    'FIREHOSE_WANTED_COLLECTIONS',
+    'app.bsky.feed.post,app.bsky.feed.like,app.bsky.feed.repost,app.bsky.graph.follow,app.bsky.graph.block'
+)
 
-@dataclass
-class FirehoseConfig:
-    endpoint: str
-    reconnect_delay: int
-    max_reconnect_delay: int
-    wanted_collections: Optional[str] = None
+KAFKA_BOOTSTRAP_SERVERS = os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'redpanda.bluesky.svc.cluster.local:9092')
+KAFKA_TOPIC = os.environ.get('KAFKA_TOPIC', 'bluesky-events')
+KAFKA_COMPRESSION_TYPE = os.environ.get('KAFKA_COMPRESSION_TYPE', 'snappy')
+KAFKA_LINGER_MS = int(os.environ.get('KAFKA_LINGER_MS', '100'))
 
-
-@dataclass
-class KafkaConfig:
-    bootstrap_servers: str
-    topic: str
-    compression_type: str
-    linger_ms: int
-
-
-@dataclass
-class HealthConfig:
-    port: int
-
-
-@dataclass
-class Config:
-    firehose: FirehoseConfig
-    kafka: KafkaConfig
-    health: HealthConfig
-
-    @classmethod
-    def from_file(cls, config_path: Optional[str] = None) -> 'Config':
-        if config_path and os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                data = yaml.safe_load(f)
-        else:
-            collections = 'app.bsky.feed.post,app.bsky.feed.like,app.bsky.feed.repost,app.bsky.graph.follow,app.bsky.graph.block'
-            data = {
-                'firehose': {
-                    'endpoint': 'wss://jetstream2.us-east.bsky.network/subscribe',
-                    'reconnect_delay': 5,
-                    'max_reconnect_delay': 300,
-                    'wanted_collections': collections,
-                },
-                'kafka': {
-                    'bootstrap_servers': 'redpanda.bluesky.svc.cluster.local:9092',
-                    'topic': 'bluesky-events',
-                    'compression_type': 'snappy',
-                    'linger_ms': 100,
-                },
-                'health': {
-                    'port': 8080,
-                }
-            }
-
-        if 'KAFKA_BOOTSTRAP_SERVERS' in os.environ:
-            data['kafka']['bootstrap_servers'] = os.environ['KAFKA_BOOTSTRAP_SERVERS']
-        if 'KAFKA_TOPIC' in os.environ:
-            data['kafka']['topic'] = os.environ['KAFKA_TOPIC']
-
-        return cls(
-            firehose=FirehoseConfig(**data['firehose']),
-            kafka=KafkaConfig(**data['kafka']),
-            health=HealthConfig(**data['health'])
-        )
+HEALTH_PORT = int(os.environ.get('HEALTH_PORT', '8080'))

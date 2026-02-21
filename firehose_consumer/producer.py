@@ -1,30 +1,29 @@
 import logging
+import config
 from confluent_kafka import Producer
-from config import KafkaConfig
 from health import producer_errors, events_produced
 
 logger = logging.getLogger(__name__)
 
 
 class EventProducer:
-    def __init__(self, config: KafkaConfig):
-        self.config = config
+    def __init__(self):
         self.producer = None
         self._connect()
 
     def _connect(self):
         try:
             producer_config = {
-                'bootstrap.servers': self.config.bootstrap_servers,
-                'compression.type': self.config.compression_type,
-                'linger.ms': self.config.linger_ms,
+                'bootstrap.servers': config.KAFKA_BOOTSTRAP_SERVERS,
+                'compression.type': config.KAFKA_COMPRESSION_TYPE,
+                'linger.ms': config.KAFKA_LINGER_MS,
                 'acks': 'all',
                 'retries': 3,
                 'queue.buffering.max.messages': 500000,
                 'queue.buffering.max.kbytes': 1048576,  # 1GB buffer
             }
             self.producer = Producer(producer_config)
-            logger.info(f"Connected to Kafka at {self.config.bootstrap_servers}")
+            logger.info(f"Connected to Kafka at {config.KAFKA_BOOTSTRAP_SERVERS}")
         except Exception as e:
             logger.error(f"Failed to connect to Kafka: {e}")
             raise
@@ -46,7 +45,7 @@ class EventProducer:
         for attempt in range(max_retries + 1):
             try:
                 self.producer.produce(
-                    self.config.topic,
+                    config.KAFKA_TOPIC,
                     value=message_bytes,
                     callback=self._delivery_callback
                 )

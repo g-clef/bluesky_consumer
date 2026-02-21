@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: firehose-consumer
-        image: gclef/bluesky-firehose-consumer:0.0.12
+        image: gclef/bluesky-firehose-consumer:0.0.13
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -27,10 +27,6 @@ spec:
           value: "kafka.bluesky.svc.cluster.local:9092"
         - name: KAFKA_TOPIC
           value: "bluesky-events"
-        volumeMounts:
-        - name: config
-          mountPath: /config
-          readOnly: true
         resources:
           requests:
             cpu: 500m
@@ -50,7 +46,3 @@ spec:
             port: 8080
           initialDelaySeconds: 10
           periodSeconds: 5
-      volumes:
-      - name: config
-        configMap:
-          name: firehose-consumer-config
