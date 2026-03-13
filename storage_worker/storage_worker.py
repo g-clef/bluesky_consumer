@@ -17,6 +17,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+MAX_FLUSH_FAILURES = 5
+
 
 def flatten_json(nested_dict: Dict[str, Any], parent_key: str = '', sep: str = '_') -> Dict[str, Any]:
     """
@@ -68,6 +70,7 @@ class StorageWorker:
         self.health_server = HealthServer(config.HEALTH_PORT)
         self.running = False
         self.last_flush_time = time.time()
+        self.flush_failure_count = 0
 
     async def start(self):
         logger.info("Starting storage worker")
@@ -85,10 +88,15 @@ class StorageWorker:
     async def process(self):
         logger.info("Starting to consume Jetstream JSON events from Kafka")
 
+        loop = asyncio.get_running_loop()
+
         while self.running:
             try:
-                # Poll for a single message (non-blocking for event loop)
-                message_bytes = self.consumer.poll_message(timeout=0.1)
+                # Run blocking poll in a thread pool so the event loop stays
+                # responsive to health-check probes during the poll timeout.
+                message_bytes = await loop.run_in_executor(
+                    None, self.consumer.poll_message, 0.1
+                )
 
                 if message_bytes is not None:
                     try:
@@ -102,23 +110,43 @@ class StorageWorker:
                         self.writer.add_event(flattened_event)
 
                         if self.writer.should_flush():
-                            if self.writer.flush():
-                                self.consumer.commit()
+                            flushed = await loop.run_in_executor(None, self.writer.flush)
+                            if flushed:
+                                self.flush_failure_count = 0
+                                await loop.run_in_executor(None, self.consumer.commit)
                                 self.last_flush_time = time.time()
+                            else:
+                                self.flush_failure_count += 1
+                                if self.flush_failure_count >= MAX_FLUSH_FAILURES:
+                                    logger.error(
+                                        f"Flush failed {MAX_FLUSH_FAILURES} consecutive times; "
+                                        "stopping worker to allow Kubernetes restart."
+                                    )
+                                    self.running = False
 
                     except Exception as e:
                         logger.error(f"Error parsing/flattening message: {e}", exc_info=True)
 
-                # Check for time-based flush
+                # Check for time-based flush.
                 current_time = time.time()
                 time_since_flush = current_time - self.last_flush_time
                 if time_since_flush >= config.STORAGE_FLUSH_INTERVAL_SECONDS:
                     if self.writer.get_buffer_size() > 0:
-                        if self.writer.flush():
-                            self.consumer.commit()
+                        flushed = await loop.run_in_executor(None, self.writer.flush)
+                        if flushed:
+                            self.flush_failure_count = 0
+                            await loop.run_in_executor(None, self.consumer.commit)
                             self.last_flush_time = current_time
+                        else:
+                            self.flush_failure_count += 1
+                            if self.flush_failure_count >= MAX_FLUSH_FAILURES:
+                                logger.error(
+                                    f"Flush failed {MAX_FLUSH_FAILURES} consecutive times; "
+                                    "stopping worker to allow Kubernetes restart."
+                                )
+                                self.running = False
 
-                # Yield control to event loop for health checks
+                # Yield control to event loop for health checks.
                 await asyncio.sleep(0)
 
             except KeyboardInterrupt:
@@ -132,9 +160,11 @@ class StorageWorker:
         logger.info("Shutting down storage worker")
         self.running = False
 
+        loop = asyncio.get_running_loop()
         logger.info(f"Flushing {self.writer.get_buffer_size()} remaining events")
-        if self.writer.flush():
-            self.consumer.commit()
+        flushed = await loop.run_in_executor(None, self.writer.flush)
+        if flushed:
+            await loop.run_in_executor(None, self.consumer.commit)
         self.consumer.close()
         await self.health_server.stop()
         sys.exit(0)
