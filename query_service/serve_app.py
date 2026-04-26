@@ -10,6 +10,12 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import ray
+from fastmcp import FastMCP
+from ray import serve
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
 
 from query_service import config
 from query_service.duckdb_worker import _run_query, query_file
@@ -17,6 +23,8 @@ from query_service.s3_lister import list_parquet_files
 
 logger = logging.getLogger(__name__)
 
+
+# --- Utilities ---
 
 def _make_s3_client():
     return boto3.client(
@@ -61,6 +69,8 @@ def _write_to_s3(rows: List[Dict], output_path: str) -> int:
     _make_s3_client().put_object(Bucket=bucket, Key=key, Body=buf.getvalue())
     return len(rows)
 
+
+# --- Business logic ---
 
 def _do_list(start_time: str, end_time: str) -> Dict:
     start = _parse_iso(start_time)
@@ -109,14 +119,6 @@ def _do_distribute(
 
     final_rows, truncated = _apply_limit(final_rows, limit)
     return {"rows": final_rows, "row_count": len(final_rows), "truncated": truncated, "failed_files": failed_files}
-
-
-from fastmcp import FastMCP
-from ray import serve
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.routing import Mount, Route
 
 
 # --- MCP tools ---
