@@ -14,6 +14,10 @@ Kafka (3-node cluster)
 Storage Workers (3-10 pods, auto-scaling)
     ↓
 MinIO S3 (Parquet files)
+    ↓
+Query Service (Ray Serve + DuckDB, 1 driver pod)
+    ↕
+Ray Cluster (distributed query workers)
 ```
 
 ### Components
@@ -22,6 +26,7 @@ MinIO S3 (Parquet files)
 2. **Kafka** - Kafka message broker for buffering and distributing events
 3. **Storage Workers** - Horizontally scalable workers that consume from Redpanda and write batched Parquet files to S3
 4. **MinIO S3** - Object storage for Parquet data files (partitioned by time)
+5. **Query Service** - Ray Serve deployment that provides an HTTP API and MCP interface for querying stored data via DuckDB
 
 ### Why This Architecture?
 
@@ -30,6 +35,7 @@ MinIO S3 (Parquet files)
 - **Data Safety**: Events are persisted to Redpanda before being written to S3
 - **High Throughput**: Handles thousands of events per second
 - **Cost Effective**: Parquet compression and columnar storage reduce storage costs
+- **Distributed Queries**: Ray distributes DuckDB queries across workers, enabling fast scans over large time ranges
 
 ## Data Collection
 
@@ -76,6 +82,7 @@ This partitioning allows:
 - ArgoCD installed
 - MinIO S3 storage (see [homelab-k8s-cluster](https://github.com/g-clef/homelab-k8s-cluster))
 - Metrics Server for HPA
+- Ray cluster (for query service distributed workers; head service expected at `homelab-ray-head-svc.ray.svc.cluster.local:10001`)
 
 ### Quick Start
 
@@ -103,6 +110,7 @@ ArgoCD will automatically:
 2. Deploy Redpanda (3 nodes)
 3. Deploy Firehose Consumer (1 replica)
 4. Deploy Storage Workers (3 replicas, auto-scaling to 10)
+5. Deploy Query Service driver pod (1 replica)
 
 3. **Verify Deployment**:
 
@@ -115,6 +123,9 @@ kubectl logs -n bluesky -l app=firehose-consumer -f
 
 # Check storage worker logs
 kubectl logs -n bluesky -l app=storage-worker -f
+
+# Check query service logs
+kubectl logs -n bluesky -l app=query-service-driver -f
 
 # Check metrics
 kubectl get --raw /apis/custom.metrics.k8s.io/v1beta1/namespaces/bluesky/pods/*/bluesky_firehose_events_received_total
@@ -151,6 +162,12 @@ docker buildx build --platform linux/amd64,linux/arm64 \
 docker buildx build --platform linux/amd64,linux/arm64 \
   -f Dockerfile.worker \
   -t gclef/bluesky-storage-worker:latest \
+  --push .
+
+# Build and push query service
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -f Dockerfile.query \
+  -t gclef/bluesky-query-service:0.0.1 \
   --push .
 ```
 
@@ -219,6 +236,7 @@ Configuration is managed via ConfigMaps:
 - `firehose-consumer-config` - Firehose and Kafka settings
 - `storage-worker-config` - Kafka, S3, and storage settings
 - `redpanda-config` - Topic configuration
+- Query service is configured via environment variables in `kubernetes/query-service/deployment.yaml` (S3 credentials, Ray address, partition format, default limit)
 
 To update:
 
@@ -229,9 +247,57 @@ kubectl rollout restart deployment firehose-consumer -n bluesky
 
 ## Data Access
 
-Query data using S3-compatible tools:
+### Query Service (HTTP API)
 
-### DuckDB
+The query service runs as a Ray Serve deployment and exposes three endpoints. The driver pod connects to the Ray cluster at `RAY_ADDRESS` and distributes DuckDB workers across the cluster.
+
+**List parquet files for a time range:**
+
+```bash
+curl -X POST http://query-service/list \
+  -H 'Content-Type: application/json' \
+  -d '{"start_time": "2025-12-28T14:00:00Z", "end_time": "2025-12-28T15:00:00Z"}'
+# Returns: {"paths": ["s3://bluesky-data/year=2025/...", ...]}
+```
+
+**Query a specific set of parquet files:**
+
+```bash
+curl -X POST http://query-service/query \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "paths": ["s3://bluesky-data/year=2025/month=12/day=28/hour=14/file.parquet"],
+    "sql": "SELECT did, COUNT(*) as n FROM events GROUP BY did ORDER BY n DESC LIMIT 10",
+    "limit": 100
+  }'
+# Returns: {"rows": [...], "row_count": 10, "truncated": false}
+```
+
+**Distribute a query across Ray workers (large time ranges):**
+
+```bash
+curl -X POST http://query-service/distribute \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "start_time": "2025-12-28T00:00:00Z",
+    "end_time": "2025-12-28T23:59:59Z",
+    "sql": "SELECT event_type, COUNT(*) as n FROM events GROUP BY event_type",
+    "limit": 10000
+  }'
+# Returns: {"rows": [...], "row_count": N, "truncated": false, "failed_files": 0}
+```
+
+All SQL queries reference the data as a virtual table named `events`. Optionally pass `"output_path": "s3://bucket/key.parquet"` to write results directly to S3 instead of returning rows.
+
+### MCP Interface
+
+The query service also exposes a [FastMCP](https://github.com/jlowin/fastmcp) interface at `/mcp`, providing three tools for LLM agents:
+
+- `list_parquet_files(start_time, end_time)` — list S3 paths for a time range
+- `query_partition(paths, sql, limit, output_path)` — run SQL against specific files
+- `distribute_query(start_time, end_time, sql, limit, output_path)` — distributed query over a time range
+
+### Direct S3 Access (DuckDB)
 
 ```python
 import duckdb
@@ -240,7 +306,6 @@ conn = duckdb.connect()
 conn.execute("""
   SELECT did, event_type, COUNT(*) as count
   FROM read_parquet('s3://bluesky-data/year=2025/month=12/day=28/**/*.parquet')
-  WHERE hour = '14'
   GROUP BY did, event_type
   ORDER BY count DESC
   LIMIT 10
@@ -295,8 +360,9 @@ Based on testing:
 - **Firehose Consumer**: ~500m CPU, ~1Gi RAM
 - **Storage Worker** (each): ~500m CPU, ~1Gi RAM
 - **Redpanda** (each node): ~1 CPU, ~2Gi RAM
+- **Query Service driver**: ~250m CPU, ~512Mi RAM (limits: 500m CPU, 1Gi RAM)
 
-Total for default deployment: ~6 CPU, ~12Gi RAM
+Total for default deployment: ~6.25 CPU, ~12.5Gi RAM (excludes Ray cluster workers)
 
 ## Related Projects
 
