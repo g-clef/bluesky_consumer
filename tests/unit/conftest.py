@@ -8,11 +8,18 @@ import os
 import sys
 from unittest.mock import MagicMock
 
-# Add storage_worker/ to path so bare imports (import config, from consumer import ...)
-# resolve correctly when running tests.
-_sw_dir = os.path.dirname(__file__)
+# Add project root to path so imports like `import storage_worker.storage_worker as sw`
+# and `from query_service.s3_lister import ...` resolve correctly.
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+# Also add storage_worker/ to path so bare imports (import config, from consumer import ...)
+# in storage_worker modules resolve correctly when running tests.
+# This must be added AFTER the project root so both import styles work.
+_sw_dir = os.path.join(_project_root, 'storage_worker')
 if _sw_dir not in sys.path:
-    sys.path.insert(0, _sw_dir)
+    sys.path.insert(1, _sw_dir)
 
 # Mock confluent_kafka before consumer.py is imported.
 # KafkaException must be a real exception class so except-clauses work.
